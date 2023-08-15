@@ -118,27 +118,29 @@ func (handle *producerEvent) transMessage(data []byte, key string, partition int
 	message.Value = data
 	message.Timestamp = time.Now()
 
-	if handle.param.ConsumerMode == 0 {
-		handle.producer.ProduceChannel() <- message
-	} else {
-		i := 0
-		for i < 3 {
-			err := handle.producer.Produce(message, nil)
-			if err != nil {
-				if err.Error() == kafka.ErrQueueFull.String() {
-					log.Error("transMessage ErrQueueFull(topic:%s,err:%v).", handle.param.Topic, err)
-					handle.producer.Flush(100)
-					continue
+	go func(msg *kafka.Message) {
+		if handle.param.ConsumerMode == 0 {
+			handle.producer.ProduceChannel() <- msg
+		} else {
+			i := 0
+			for i < 3 {
+				err := handle.producer.Produce(msg, nil)
+				if err != nil {
+					if err.Error() == kafka.ErrQueueFull.String() {
+						log.Error("transMessage ErrQueueFull(topic:%s,err:%v).", handle.param.Topic, err)
+						handle.producer.Flush(100)
+						continue
+					} else {
+						log.Error("transMessage error(topic:%s,err:%v).", handle.param.Topic, err)
+						i++
+						continue
+					}
 				} else {
-					log.Error("transMessage error(topic:%s,err:%v).", handle.param.Topic, err)
-					i++
-					continue
+					break
 				}
-			} else {
-				break
 			}
 		}
-	}
+	}(message)
 
 	return nil
 }
