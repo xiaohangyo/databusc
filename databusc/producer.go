@@ -16,6 +16,9 @@ type ProducerEvent interface {
 	//发送消息到分区取模接口
 	SendMessageByMod(data []byte, key uint32) error
 
+	//发送消息到分区取模接口
+	SendMessageByMod2(data []byte, key uint32) error
+
 	//关闭生产者
 	Close()
 }
