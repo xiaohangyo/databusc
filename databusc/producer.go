@@ -107,6 +107,11 @@ func (handle *producerEvent) SendMessageByMod(data []byte, key uint32) error {
 	return handle.transMessage(data, "", partition)
 }
 
+func (handle *producerEvent) SendMessageByMod2(data []byte, key uint32) error {
+	var partition int32 = int32(key % handle.maxpartition)
+	return handle.transMessage2(data, "", partition)
+}
+
 func (handle *producerEvent) transMessage(data []byte, key string, partition int32) error {
 	message := new(kafka.Message)
 	message.TopicPartition.Topic = &handle.param.Topic
@@ -141,6 +146,42 @@ func (handle *producerEvent) transMessage(data []byte, key string, partition int
 			}
 		}
 	}(message)
+
+	return nil
+}
+
+func (handle *producerEvent) transMessage2(data []byte, key string, partition int32) error {
+	message := new(kafka.Message)
+	message.TopicPartition.Topic = &handle.param.Topic
+	message.TopicPartition.Partition = kafka.PartitionAny
+	if partition >= 0 {
+		message.TopicPartition.Partition = partition
+	}
+	message.Key = []byte(key)
+	message.Value = data
+	message.Timestamp = time.Now()
+
+	if handle.param.ConsumerMode == 0 {
+		handle.producer.ProduceChannel() <- message
+	} else {
+		i := 0
+		for i < 3 {
+			err := handle.producer.Produce(message, nil)
+			if err != nil {
+				if err.Error() == kafka.ErrQueueFull.String() {
+					log.Error("transMessage ErrQueueFull(topic:%s,err:%v).", handle.param.Topic, err)
+					handle.producer.Flush(100)
+					continue
+				} else {
+					log.Error("transMessage error(topic:%s,err:%v).", handle.param.Topic, err)
+					i++
+					continue
+				}
+			} else {
+				break
+			}
+		}
+	}
 
 	return nil
 }
